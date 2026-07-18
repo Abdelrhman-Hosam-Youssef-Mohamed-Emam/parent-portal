@@ -1,0 +1,115 @@
+/* Import Fonts */
+@import url('https://fonts.googleapis.com/css2?family=El+Messiri:wght@400;500;600;700&display=swap');
+
+/* =========================================
+   1. الخطوط والخلفية الأساسية
+========================================= */
+.stApp {
+    font-family: 'El Messiri', Arial, sans-serif;
+    background-color: #fbfbfb; 
+    color: #1f1f1f; 
+}
+
+/* =========================================
+   2. إصلاح المحاذاة واللغة العربية (بدون تدمير الشريط الجانبي)
+========================================= */
+/* تطبيق العربية على حاويات المحتوى فقط */
+.block-container, 
+[data-testid="stSidebarUserContent"], 
+[data-testid="stSidebarNavItems"] {
+    direction: rtl !important;
+}
+
+/* إجبار جميع النصوص (عناوين، فقرات، تسميات الحقول) على المحاذاة لليمين */
+[data-testid="stMarkdownContainer"], 
+[data-testid="stWidgetLabel"],
+[data-testid="stText"] {
+    text-align: right !important;
+    direction: rtl !important;
+    display: block;
+    width: 100%;
+}
+
+/* ضبط شكل روابط الشريط الجانبي (الأيقونة يمين والنص يسارها) */
+[data-testid="stSidebarNavLink"] {
+    flex-direction: row-reverse !important;
+    justify-content: flex-end !important;
+    text-align: right !important;
+}
+
+[data-testid="stSidebarNavLink"] span {
+    text-align: right !important;
+}
+
+/* =========================================
+   3. نموذج الدخول (Login Form)
+========================================= */
+div[data-testid="stForm"] {
+    background-color: white !important;
+    border-radius: 12px !important;
+    padding: 30px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+    border: 1px solid #efefef !important;
+}
+
+/* =========================================
+   4. الأزرار (Buttons)
+========================================= */
+.stButton > button, div[data-testid="stFormSubmitButton"] button {
+    background-color: #59695e !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 2rem 0 !important;
+    padding: 0.75rem 2rem !important;
+    font-family: 'El Messiri', sans-serif;
+    font-weight: 700 !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+    transition: all 0.2s ease-in-out;
+    width: 100% !important;
+}
+
+.stButton > button:hover, div[data-testid="stFormSubmitButton"] button:hover {
+    background-color: #758a7c !important;
+    color: #ffffff !important;
+    transform: translateY(-2px);
+}
+
+/* =========================================
+   5. الحقول (Inputs) - (أرقام وكلمات مرور)
+========================================= */
+.stTextInput input, .stPasswordInput input {
+    direction: ltr !important; 
+    text-align: left !important;
+    border-radius: 8px !important;
+    border: 1px solid #d9d9d9 !important;
+}
+
+/* =========================================
+   6. تنسيق التابات (Tabs)
+========================================= */
+
+/* شكل التابات غير النشطة */
+div[data-testid="stTabs"] button[data-baseweb="tab"] p {
+    color: #6b6b6b !important; 
+    font-size: 1.1rem !important;
+    font-weight: 600 !important;
+    transition: all 0.3s ease;
+}
+
+/* شكل التاب لما تقف عليه بالماوس */
+div[data-testid="stTabs"] button[data-baseweb="tab"]:hover p {
+    color: #59695e !important; 
+}
+
+/* شكل التاب النشط (المتحدد حالياً) */
+div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] p {
+    color: #59695e !important; 
+    font-weight: 800 !important;
+}
+
+/* الخط السفلي للتاب النشط */
+div[data-testid="stTabs"] div[data-baseweb="tab-highlight"] {
+    background-color: #c9a878 !important; 
+    height: 4px !important; 
+    border-radius: 4px 4px 0 0 !important;
+}

@@ -1,0 +1,15 @@
+[theme]
+# اللون الأساسي: سيُطبق تلقائياً على التاب النشط وأي عناصر تفاعلية أخرى
+primaryColor = "#59695e"
+
+# لون الخلفية الأساسي
+backgroundColor = "#fbfbfb"
+
+# لون الخلفية الثانوي (لبعض العناصر مثل الـ Sidebar)
+secondaryBackgroundColor = "#efefef"
+
+# لون النص الأساسي
+textColor = "#1f1f1f"
+
+# نوع الخط الافتراضي
+font = "sans serif"

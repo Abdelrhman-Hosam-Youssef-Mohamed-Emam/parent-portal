@@ -18,7 +18,7 @@ with col2:
         )
     
     # نصوص الترحيب محاذاة في المنتصف بشكل آمن تماماً وبألوان الهوية المحددة
-    st.markdown("<h3 style='text-align: center; color: #59695e; margin-bottom: 0;'>أهلاً بك في واحة الرضوان التعليمية</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #59695e; margin-bottom: 0;'>أهلًا بك في واحة الرضوان التعليمية</h3>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #6b6b6b; margin-top: 5px; margin-bottom: 25px;'>تسجيل الدخول لبوابة أولياء الأمور</p>", unsafe_allow_html=True)
 
     # نموذج تسجيل الدخول المنسق عبر الـ CSS المحدث

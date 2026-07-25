@@ -89,7 +89,8 @@ for real_name, data in grouped_children.items():
             </div>
         """, unsafe_allow_html=True)
         
-        for act in data["activities"]:
+        # ضفنا enumerate عشان نطلع رقم تسلسلي (idx) لكل نشاط
+        for idx, act in enumerate(data["activities"]):
             activity_name = act.get('activity_name') or 'غير محدد'
             teacher = act.get('teacher_name') or 'غير محدد'
             hall = act.get('hall_name') or 'غير محدد'
@@ -109,7 +110,8 @@ for real_name, data in grouped_children.items():
             # زر التفاصيل للنشاط
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
-                if st.button(f"عرض السجل اليومي ({activity_name})", key=f"view_{act['id']}", use_container_width=True):
+                # ضفنا الـ idx للـ key عشان نضمن إنه مستحيل يتكرر
+                if st.button(f"عرض السجل اليومي ({activity_name})", key=f"view_{act['id']}_{idx}", use_container_width=True):
                     st.session_state["selected_student_id"] = act['id']
                     st.session_state["selected_activity"] = {
                         "real_name": real_name,

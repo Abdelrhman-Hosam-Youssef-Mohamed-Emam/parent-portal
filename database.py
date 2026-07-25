@@ -2,29 +2,34 @@ import psycopg2
 from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 import streamlit as st
+import os
+# (طبعاً سيب استدعاء مكتبة pool زي ما هو فوق عندك في الملف)
 
 @st.cache_resource
 def get_connection_pool():
     """
     تهيئة بركة الاتصال (Connection Pool) باستخدام رابط الاتصال الموحد (Connection String)
-    من ملف secrets.toml الخاص بـ Streamlit.
+    سواء من متغيرات البيئة (في ديجيتال أوشن) أو من ملف secrets.toml (محلياً).
     """
-    try:
-        # قراءة رابط الاتصال الموحد
-        db_url = st.secrets["DATABASE_URL"]
-    except FileNotFoundError:
-        st.error("🚨 ملف `secrets.toml` غير موجود! تأكد من إنشائه داخل مجلد `.streamlit`.")
-        st.stop()
-    except KeyError:
-        st.error("🚨 المتغير `DATABASE_URL` غير موجود داخل ملف `secrets.toml`.")
-        st.stop()
+    # 1. السيرفر هيحاول يقرأ الرابط من إعدادات ديجيتال أوشن
+    db_url = os.getenv("DATABASE_URL")
+    
+    # 2. لو ملقاهوش (يعني إنت شغال على اللاب توب بتاعك)، هيقرأ من ملف secrets
+    if not db_url:
+        try:
+            db_url = st.secrets["DATABASE_URL"]
+        except FileNotFoundError:
+            st.error("🚨 ملف `secrets.toml` غير موجود، ولم يتم العثور على المتغير في بيئة التشغيل.")
+            st.stop()
+        except KeyError:
+            st.error("🚨 المتغير `DATABASE_URL` غير موجود.")
+            st.stop()
 
     # استخدام الـ dsn (Data Source Name) لفتح الاتصال بالرابط الموحد مباشرة
     return pool.SimpleConnectionPool(
         1, 20,
         dsn=db_url
     )
-
 # تعريف الـ pool مرة واحدة
 db_pool = get_connection_pool()
 

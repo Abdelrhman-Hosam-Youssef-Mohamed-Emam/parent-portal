@@ -47,6 +47,18 @@ if children:
             <h3 style="color: white; margin: 0; font-size: 1.5rem;">👋 أهلاً بالسيد/ة: {parent_name}</h3>
         </div>
     """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="background-color: #f8fcf9; border: 1px solid #c9a878; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+            <span style="font-size: 1.2rem;">💡</span>
+            <b style="color: #59695e; font-size: 1.1rem;">تنويه بخصوص بيانات الطلاب</b>
+        </div>
+        <p style="margin: 0; font-size: 0.95rem; color: #555; line-height: 1.6;">
+            نظراً لعدم اكتمال إدخال كافة بيانات الطلاب في قواعدنا حتى الآن، قد تلاحظ بعض البيانات الناقصة. كما قد تظهر أكثر من بطاقة لنفس الطالب في حال تم تسجيل اسمه بصيغ مختلفة بين الفصول. نرجو تفهمكم، <b>وسيتم حل هذه المشكلة وتوحيد البيانات قريباً.</b>
+        </p>
+        </div>
+    """, unsafe_allow_html=True)
 else:
     st.info("لا يوجد أبناء مسجلين بهذا الرقم حالياً.")
     st.stop()
@@ -77,7 +89,7 @@ for real_name, data in grouped_children.items():
     with st.container(border=True):
         st.markdown(f"""
             <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px; border-bottom: 2px solid #c9a878; padding-bottom: 10px;">
-                <div style="font-size: 40px;">👦</div>
+                <div style="font-size: 40px;">🧑‍🎓</div>
                 <div>
                     <h2 style="margin: 0; color: #2e3d38; font-weight: 800;">{real_name}</h2>
                     <p style="margin: 5px 0 0 0; color: #6b6b6b; font-size: 1.1rem;">

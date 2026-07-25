@@ -182,6 +182,19 @@ else:
     for d in sorted(records_by_date.keys()):
         df_data.append(build_row(d, records_by_date[d]))
 
+# alert
+st.markdown("""
+    <div style="background-color: #fffaf5; border-right: 4px solid #e6a23c; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+            <span style="font-size: 1.2rem;">⚠️</span>
+            <b style="color: #995e00; font-size: 1.1rem;">ملاحظة هامة حول سجل الحضور</b>
+        </div>
+        <p style="margin: 0; font-size: 0.95rem; color: #555; line-height: 1.6;">
+            نظراً لحدوث بعض المشاكل التقنية المؤقتة أثناء تسجيل حضور الطلاب في واحة الرضوان، قد يظهر الطالب "غائباً" في بعض الأيام التي حضر فيها بالفعل، كما قد تلاحظ نقصاً في بعض بيانات الحضور والانصراف بسبب عدم اكتمال البيانات المركزية. نحن نتابع الأمر عن كثب، <b>وسيتم مراجعة السجلات وحل هذه المشكلة قريباً.</b>
+        </p>
+    </div>
+""", unsafe_allow_html=True)
+
 st.markdown("### 📅 السجل اليومي الموحد")
 
 if not df_data:

@@ -5,7 +5,7 @@ def authenticate_user(phone_number, password):
     """التحقق من بيانات ولي الأمر من الجدول الجديد"""
     query = """
         SELECT id, phone_number, password 
-        FROM parents_login 
+        FROM portal_auth.parents_login 
         WHERE phone_number = %s 
         LIMIT 1;
     """

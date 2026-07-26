@@ -165,8 +165,8 @@ def build_row(d, record):
         "المعلم الأساسي": teacher_status,
         "المعلم البديل": sub_teacher,
         "ملاحظات الاستبدال": sub_note,
-        "ملاحظات المعلم": teacher_note,
-        "التقييم": rating,
+        "تقييم المحفظ": rating,
+        "ملاحظات المحفظ": teacher_note,
         "month_sort": d.strftime("%Y-%m"),
         "week_sort": week_num
     }

@@ -3,7 +3,6 @@ from psycopg2 import pool
 from psycopg2.extras import RealDictCursor
 import streamlit as st
 import os
-# (طبعاً سيب استدعاء مكتبة pool زي ما هو فوق عندك في الملف)
 
 @st.cache_resource
 def get_connection_pool():
@@ -25,16 +24,16 @@ def get_connection_pool():
             st.error("🚨 المتغير `DATABASE_URL` غير موجود.")
             st.stop()
 
-    # استخدام الـ dsn (Data Source Name) لفتح الاتصال بالرابط الموحد مباشرة
+    # استخدام الـ dsn لفتح الاتصال بالرابط الموحد مباشرة
     return pool.SimpleConnectionPool(
         1, 20,
         dsn=db_url
     )
-# تعريف الـ pool مرة واحدة
-db_pool = get_connection_pool()
 
 def fetch_query(query, params=None):
-    """تنفيذ الاستعلامات المتعددة مع حماية ذكية للاتصال."""
+    """تنفيذ الاستعلامات المتعددة مع حماية ذكية ومسح للكاش عند انقطاع الاتصال."""
+    # بننادي على الدالة هنا عشان دايماً تجيب أحدث نسخة من الكاش
+    db_pool = get_connection_pool()
     conn = None
     try:
         conn = db_pool.getconn()
@@ -43,23 +42,29 @@ def fetch_query(query, params=None):
             results = cur.fetchall()
         db_pool.putconn(conn)
         return results
+        
     except (psycopg2.OperationalError, psycopg2.InterfaceError):
-        # في حالة موت الاتصال، يتم التخلص منه وسحب واحد جديد
+        # ⚠️ الاتصال مات! البركة كلها غالباً مسمومة
         if conn:
             db_pool.putconn(conn, close=True)
-            conn = None
+            
+        # 💡 السحر هنا: فجّر الكاش وابني بركة اتصالات جديدة من الصفر
+        st.cache_resource.clear()
+        fresh_pool = get_connection_pool()
+        
         try:
-            conn = db_pool.getconn()
+            conn = fresh_pool.getconn()
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(query, params)
                 results = cur.fetchall()
-            db_pool.putconn(conn)
+            fresh_pool.putconn(conn)
             return results
         except Exception as retry_err:
             if conn:
-                db_pool.putconn(conn, close=True)
-            st.error(f"فشل الاتصال بقاعدة البيانات بعد إعادة المحاولة: {retry_err}")
+                fresh_pool.putconn(conn, close=True)
+            st.error(f"فشل الاتصال بقاعدة البيانات حتى بعد إعادة التنشيط: {retry_err}")
             return None
+            
     except Exception as e:
         st.error(f"خطأ غير متوقع: {e}")
         if conn:
@@ -71,7 +76,8 @@ def fetch_query(query, params=None):
         return None
 
 def fetch_one(query, params=None):
-    """تنفيذ استعلام لصف واحد (مثل تسجيل الدخول) مع حماية ذكية للاتصال."""
+    """تنفيذ استعلام لصف واحد (مثل تسجيل الدخول) مع مسح للكاش عند انقطاع الاتصال."""
+    db_pool = get_connection_pool()
     conn = None
     try:
         conn = db_pool.getconn()
@@ -80,23 +86,28 @@ def fetch_one(query, params=None):
             result = cur.fetchone()
         db_pool.putconn(conn)
         return result
+        
     except (psycopg2.OperationalError, psycopg2.InterfaceError):
-        # في حالة موت الاتصال، يتم التخلص منه وسحب واحد جديد
         if conn:
             db_pool.putconn(conn, close=True)
-            conn = None
+            
+        # مسح الكاش وبناء بركة جديدة لتسجيل الدخول
+        st.cache_resource.clear()
+        fresh_pool = get_connection_pool()
+        
         try:
-            conn = db_pool.getconn()
+            conn = fresh_pool.getconn()
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(query, params)
                 result = cur.fetchone()
-            db_pool.putconn(conn)
+            fresh_pool.putconn(conn)
             return result
         except Exception as retry_err:
             if conn:
-                db_pool.putconn(conn, close=True)
-            st.error(f"فشل الاتصال بقاعدة البيانات بعد إعادة المحاولة: {retry_err}")
+                fresh_pool.putconn(conn, close=True)
+            st.error(f"فشل الاتصال بقاعدة البيانات حتى بعد إعادة التنشيط: {retry_err}")
             return None
+            
     except Exception as e:
         st.error(f"خطأ غير متوقع: {e}")
         if conn:

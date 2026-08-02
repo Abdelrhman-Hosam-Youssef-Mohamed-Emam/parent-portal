@@ -446,7 +446,7 @@ else:
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px dashed #e6e6e6;">
         <div style="display: flex; align-items: center; gap: 10px;">
             <span style="font-size: 1.5rem;"></span>
-            <span style="font-size: 1.15rem; color: #59695e; font-weight: bold;">التقييم الأسبوعي النهائي</span>
+            <span style="font-size: 1.15rem; color: #59695e; font-weight: bold;">متوسط التقييم الإسبوعي</span>
         </div>
         <div style="font-size: 1.3rem; color: #c9a878; font-weight: 900; background: #ffffff; padding: 5px 20px; border-radius: 6px; border: 1px solid #eee;">
             {formatted_score} <span style="font-size: 0.9rem; color: #aaa;">/ 10</span>

@@ -4,6 +4,149 @@ from database import fetch_query
 from datetime import datetime, timedelta
 import json
 import os
+import gspread
+from google.oauth2.service_account import Credentials
+
+# ----------------- Fetch Configuration (Server or Local) -----------------
+def get_config_value(key_name, is_required=True):
+    """Smart function to fetch variables from DigitalOcean first, then from secrets.toml"""
+    value = os.getenv(key_name)
+    if not value:
+        try:
+            value = st.secrets[key_name]
+        except (FileNotFoundError, KeyError):
+            if is_required:
+                st.error(f"🚨 المتغير `{key_name}` غير موجود في بيئة التشغيل أو ملف الأسرار.")
+                st.stop()
+            return None
+    return value
+
+# 1. Fetch the Sheet URL using the config function
+SHEET_URL = get_config_value("SHEET_URL")
+
+# ----------------- Connect to Google Sheets (Build JSON Dynamically) -----------------
+@st.cache_data(ttl=600)
+def get_sheet_data(sheet_url):
+    """Function to connect to Google Sheets and compile auth data from variables"""
+    try:
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        
+        # Handle the private key (Convert \n strings to actual newlines)
+        raw_private_key = get_config_value("GCP_PRIVATE_KEY")
+        formatted_private_key = raw_private_key.replace('\\n', '\n')
+
+        # Build the JSON dictionary from variables
+        creds_dict = {
+            "type": get_config_value("GCP_TYPE"),
+            "project_id": get_config_value("GCP_PROJECT_ID"),
+            "private_key_id": get_config_value("GCP_PRIVATE_KEY_ID"),
+            "private_key": formatted_private_key,
+            "client_email": get_config_value("GCP_CLIENT_EMAIL"),
+            "client_id": get_config_value("GCP_CLIENT_ID"),
+            "auth_uri": get_config_value("GCP_AUTH_URI"),
+            "token_uri": get_config_value("GCP_TOKEN_URI"),
+            "auth_provider_x509_cert_url": get_config_value("GCP_AUTH_PROVIDER_CERT_URL"),
+            "client_x509_cert_url": get_config_value("GCP_CLIENT_CERT_URL"),
+            "universe_domain": get_config_value("GCP_UNIVERSE_DOMAIN")
+        }
+
+        credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        gc = gspread.authorize(credentials)
+        sheet = gc.open_by_url(sheet_url).sheet1
+        return sheet.get_all_values()
+        
+    except Exception as e:
+        st.error(f"⚠️ حدث خطأ أثناء الاتصال بجوجل شيت: {e}")
+        return []
+
+def extract_student_evaluations(sheet_values, target_code):
+    """Updated smart algorithm to support the final weekly evaluation and the final text grade"""
+    if not sheet_values or not target_code:
+        return {}, {}, {}
+    
+    # 1. Dynamically find the "Code" column
+    code_col_idx = 2
+    for r_idx, row in enumerate(sheet_values[:10]):
+        for c_idx, cell in enumerate(row):
+            if str(cell).strip() == "الكود":
+                code_col_idx = c_idx
+                break
+                
+    # 2. Find the targeted student's row
+    student_row = None
+    for row in sheet_values:
+        if len(row) > code_col_idx and str(row[code_col_idx]).strip() == str(target_code).strip():
+            student_row = row
+            break
+            
+    if not student_row:
+        return {}, {}, {} 
+        
+    # 3. Extract only the evaluation cells (after the code column)
+    evals = student_row[code_col_idx + 1:]
+    
+    eval_dict = {}
+    weekly_eval_dict = {} 
+    weekly_grade_dict = {} # New dictionary to store the final text grade
+    
+    current_date = datetime(2026, 7, 19) 
+    col_idx = 0
+    
+    while col_idx < len(evals):
+        # Handle weekends (Skip Friday and Saturday)
+        if current_date.weekday() == 4: # Friday
+            current_date += timedelta(days=2)
+        elif current_date.weekday() == 5: # Saturday
+            current_date += timedelta(days=1)
+            
+        week_num = int(current_date.strftime("%U"))
+        
+        if current_date.weekday() == 3: # Thursday
+            # 1. Extract Thursday's column (Half day and recreation)
+            chunk_size = 1
+            block = evals[col_idx : col_idx + chunk_size]
+            if not block:
+                break
+            
+            val = str(block[0]).strip()
+            if val:
+                eval_dict[current_date.strftime("%Y-%m-%d")] = ["-", "-", "-", val]
+                
+            col_idx += chunk_size
+            
+            # 2. Extract the "Final Weekly Evaluation" (Numeric) column
+            if col_idx < len(evals):
+                w_eval = str(evals[col_idx]).strip()
+                if w_eval:
+                    weekly_eval_dict[week_num] = w_eval
+                col_idx += 1 
+                
+            # 3. Extract the "Final Grade" (Text) column immediately after
+            if col_idx < len(evals):
+                w_grade = str(evals[col_idx]).strip()
+                if w_grade:
+                    weekly_grade_dict[week_num] = w_grade
+                col_idx += 1 # Skip the grade column to proceed to the new week
+                
+            current_date += timedelta(days=1)
+            
+        else: # From Sunday to Wednesday
+            chunk_size = 4
+            block = evals[col_idx : col_idx + chunk_size]
+            if not block:
+                break 
+                
+            formatted_block = block + [""] * (4 - len(block))
+            if any(str(cell).strip() for cell in formatted_block):
+                eval_dict[current_date.strftime("%Y-%m-%d")] = formatted_block
+                
+            col_idx += chunk_size
+            current_date += timedelta(days=1)
+            
+    return eval_dict, weekly_eval_dict, weekly_grade_dict
 
 # Security Checks
 if "authenticated" not in st.session_state:
@@ -52,9 +195,26 @@ def get_attendance(std_id):
     """
     return fetch_query(query, (std_id,))
 
-attendance_data = get_attendance(student_id)
+@st.cache_data(ttl=300)
+def get_student_code(std_id):
+    query = "SELECT student_code FROM students WHERE id = %s;"
+    res = fetch_query(query, (std_id,))
+    if res and len(res) > 0:
+        if isinstance(res[0], dict):
+            return res[0].get('student_code', '')
+        elif isinstance(res[0], (tuple, list)):
+            return res[0][0]
+    return ""
 
-# ----------------- هيدر صفحة التفاصيل -----------------
+attendance_data = get_attendance(student_id)
+student_code = get_student_code(student_id)
+
+# Fetch sheet data passing only the URL
+sheet_values = get_sheet_data(SHEET_URL)
+# Unpack all three dictionaries now
+sheet_eval_dict, weekly_eval_dict, weekly_grade_dict = extract_student_evaluations(sheet_values, student_code)
+
+# ----------------- Details Page Header -----------------
 real_name = activity_info.get("real_name", "غير متوفر")
 act_name = activity_info.get("activity_name", "غير متوفر")
 teacher = activity_info.get("teacher", "غير متوفر")
@@ -72,7 +232,7 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
-# ----------------- تلوين التابات -----------------
+# ----------------- Tab Styling -----------------
 st.markdown("""
     <style>
         div[data-testid="stTabs"] button[data-baseweb="tab"] p {
@@ -107,11 +267,15 @@ week_names = {
     4: "الأسبوع الرابع", 5: "الأسبوع الخامس", 6: "الأسبوع السادس"
 }
 
+# Merge dates: Combine attendance dates and sheet dates
 records_by_date = {r['date']: r for r in attendance_data} if attendance_data else {}
+sheet_dates = [datetime.strptime(ds, "%Y-%m-%d").date() for ds in sheet_eval_dict.keys()]
 
-if records_by_date:
-    min_date = min(records_by_date.keys())
-    max_date = max(datetime.today().date(), max(records_by_date.keys()))
+all_unique_dates = set(records_by_date.keys()) | set(sheet_dates)
+
+if all_unique_dates:
+    min_date = min(all_unique_dates)
+    max_date = max(datetime.today().date(), max(all_unique_dates))
 else:
     min_date = datetime.today().date()
     max_date = datetime.today().date()
@@ -124,13 +288,20 @@ for key, val in schedules.items():
         allowed_days = val.get("allowed_days", [])
         break
 
-def build_row(d, record):
+def build_row(d, record, sheet_evals):
     day_name = arabic_days[d.weekday()]
     date_str = d.strftime("%Y-%m-%d")
     
-    # استخدام دالة التقويم التي تعتبر الأحد هو بداية الأسبوع الفعلي
+    # Use the calendar function considering Sunday as the start of the week
     week_num = int(d.strftime("%U"))
     
+    # Extract daily evaluations
+    eval_block = sheet_evals.get(date_str, ["", "", "", ""])
+    p1 = str(eval_block[0]).strip() if str(eval_block[0]).strip() else "-"
+    p2 = str(eval_block[1]).strip() if str(eval_block[1]).strip() else "-"
+    p3 = str(eval_block[2]).strip() if str(eval_block[2]).strip() else "-"
+    eval_notes = str(eval_block[3]).strip() if str(eval_block[3]).strip() else "-"
+
     if record:
         status = "حاضر"
         check_in = record['check_in_time'].strftime("%I:%M %p").replace("AM", "ص").replace("PM", "م") if record.get('check_in_time') else "-"
@@ -156,6 +327,7 @@ def build_row(d, record):
         status = "غائب"
         check_in = check_out = teacher_status = sub_teacher = sub_note = teacher_note = rating = "-"
 
+    # Return structured row data
     return {
         "اليوم": day_name,
         "التاريخ": date_str,
@@ -167,22 +339,26 @@ def build_row(d, record):
         "ملاحظات الاستبدال": sub_note,
         "تقييم المحفظ": rating,
         "ملاحظات المحفظ": teacher_note,
+        "تقييم الفترة الأولى": p1,
+        "تقييم الفترة الثانية": p2,
+        "تقييم الفترة الثالثة": p3,
+        "ملاحظات المعلمين أو المشرفين": eval_notes,
         "month_sort": d.strftime("%Y-%m"),
         "week_sort": week_num
     }
 
-if is_scheduled and records_by_date:
+if is_scheduled and all_unique_dates:
     current_date = min_date
     while current_date <= max_date:
-        if current_date.weekday() in allowed_days:
+        if current_date.weekday() in allowed_days or current_date in sheet_dates:
             record = records_by_date.get(current_date)
-            df_data.append(build_row(current_date, record))
+            df_data.append(build_row(current_date, record, sheet_eval_dict))
         current_date += timedelta(days=1)
 else:
-    for d in sorted(records_by_date.keys()):
-        df_data.append(build_row(d, records_by_date[d]))
+    for d in sorted(all_unique_dates):
+        df_data.append(build_row(d, records_by_date.get(d), sheet_eval_dict))
 
-# alert
+# Alert Section
 st.markdown("""
     <div style="background-color: #fffaf5; border-right: 4px solid #e6a23c; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
@@ -224,13 +400,13 @@ else:
                 
                 week_df = month_df[month_df['week_sort'] == w].drop(columns=['week_sort'])
                 
-                # إخفاء الـ index وتطبيق الألوان
+                # Hide index and apply styles
                 styled_df = week_df.style.apply(highlight_status, axis=1).hide(axis="index")
                 html_table = styled_df.to_html()
                 
-                # تجميع الـ HTML ككتلة واحدة بدون مسافات أو أسطر عشان Streamlit ميعتبرهوش نص عادي
+                # Render custom HTML table
                 custom_html = (
-                    '<div class="custom-table" style="direction: rtl; overflow-x: auto; border: 1px solid #e6e6e6; border-radius: 8px; margin-bottom: 25px; background-color: #ffffff;">'
+                    '<div class="custom-table" style="direction: rtl; overflow-x: auto; border: 1px solid #e6e6e6; border-radius: 8px; margin-bottom: 20px; background-color: #ffffff;">'
                     '<style>'
                     '.custom-table table { width: 100%; border-collapse: collapse; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; font-size: 0.95rem; } '
                     '.custom-table th, .custom-table td { padding: 12px 15px; text-align: right !important; border-bottom: 1px solid #eee; white-space: nowrap; } '
@@ -242,3 +418,49 @@ else:
                 )
                 
                 st.markdown(custom_html, unsafe_allow_html=True)
+                
+                # --- Draw the combined weekly evaluation & final grade card ---
+                w_eval = weekly_eval_dict.get(w)
+                w_grade = weekly_grade_dict.get(w)
+                
+                # Only render the card if at least one metric exists for the week
+                if w_eval or w_grade:
+                    
+                    # Clean and format the numeric score
+                    formatted_score = "-"
+                    if w_eval:
+                        try:
+                            score = float(w_eval)
+                            formatted_score = f"{score:.1f}"
+                        except ValueError:
+                            formatted_score = w_eval
+                    
+                    final_grade_text = w_grade if w_grade else "-"
+                    
+                    # Avoid showing Excel calculation errors
+                    if formatted_score not in ["!DIV/0!", "#DIV/0!"]:
+                        
+                        # HTML string with NO indentation to prevent Markdown code block rendering
+                        card_html = f"""
+<div style="background-color: #f8fcf9; border: 1px solid #c9a878; border-radius: 8px; padding: 20px; margin-bottom: 35px; box-shadow: 0 2px 4px rgba(0,0,0,0.03);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px dashed #e6e6e6;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.5rem;"></span>
+            <span style="font-size: 1.15rem; color: #59695e; font-weight: bold;">التقييم الأسبوعي النهائي</span>
+        </div>
+        <div style="font-size: 1.3rem; color: #c9a878; font-weight: 900; background: #ffffff; padding: 5px 20px; border-radius: 6px; border: 1px solid #eee;">
+            {formatted_score} <span style="font-size: 0.9rem; color: #aaa;">/ 10</span>
+        </div>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.5rem;"></span>
+            <span style="font-size: 1.15rem; color: #59695e; font-weight: bold;">التقدير النهائي</span>
+        </div>
+        <div style="font-size: 1.2rem; color: #2e3d38; font-weight: bold; background: #ffffff; padding: 5px 20px; border-radius: 6px; border: 1px solid #eee;">
+            {final_grade_text}
+        </div>
+    </div>
+</div>
+"""
+                        st.markdown(card_html, unsafe_allow_html=True)
